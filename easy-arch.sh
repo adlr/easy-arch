@@ -50,7 +50,9 @@ kernel_selector () {
     print "2) Hardened: A security-focused Linux kernel"
     print "3) LTS: Long-term support (LTS) Linux kernel"
     print "4) Zen: A Linux kernel optimized for desktop usage"
+    print "5) stable + LTS"
     read -r -p "Insert the number of the corresponding kernel: " choice
+    kernel2pkgs=""
     case $choice in
         1 ) kernel="linux"
             ;;
@@ -59,6 +61,9 @@ kernel_selector () {
         3 ) kernel="linux-lts"
             ;;
         4 ) kernel="linux-zen"
+            ;;
+        5 ) kernel="linux"
+            kernel2pkgs="linux-lts linux-lts-headers"
             ;;
         * ) print "You did not enter a valid selection."
             kernel_selector
@@ -183,7 +188,8 @@ hostname_selector () {
 
 # Setting up the locale (function).
 locale_selector () {
-    read -r -p "Please insert the locale you use (format: xx_XX or enter empty to use en_US): " locale
+    locale=""
+    #read -r -p "Please insert the locale you use (format: xx_XX or enter empty to use en_US): " locale
     if [ -z "$locale" ]; then
         print "en_US will be used as default locale."
         locale="en_US"
@@ -194,7 +200,8 @@ locale_selector () {
 
 # Setting up the keyboard layout (function).
 keyboard_selector () {
-    read -r -p "Please insert the keyboard layout you use (enter empty to use US keyboard layout): " kblayout
+    kblayout=""
+    #read -r -p "Please insert the keyboard layout you use (enter empty to use US keyboard layout): " kblayout
     if [ -z "$kblayout" ]; then
         print "US keyboard layout will be used by default."
         kblayout="us"
@@ -254,7 +261,7 @@ mount $BTRFS /mnt
 
 # Creating BTRFS subvolumes.
 print "Creating BTRFS subvolumes."
-for volume in @ @home @root @srv @snapshots @var_log @var_pkgs
+for volume in @ @home @root @snapshots @var_log @var_pkgs
 do
     btrfs su cr /mnt/$volume
 done
@@ -262,14 +269,13 @@ done
 # Mounting the newly created subvolumes.
 umount /mnt
 print "Mounting the newly created subvolumes."
-mount -o ssd,noatime,compress-force=zstd:3,discard=async,subvol=@ $BTRFS /mnt
-mkdir -p /mnt/{home,root,srv,.snapshots,/var/log,/var/cache/pacman/pkg,boot}
-mount -o ssd,noatime,compress-force=zstd:3,discard=async,subvol=@home $BTRFS /mnt/home
-mount -o ssd,noatime,compress-force=zstd:3,discard=async,subvol=@root $BTRFS /mnt/root
-mount -o ssd,noatime,compress-force=zstd:3,discard=async,subvol=@srv $BTRFS /mnt/srv
-mount -o ssd,noatime,compress-force=zstd:3,discard=async,subvol=@snapshots $BTRFS /mnt/.snapshots
-mount -o ssd,noatime,compress-force=zstd:3,discard=async,subvol=@var_log $BTRFS /mnt/var/log
-mount -o ssd,noatime,compress-force=zstd:3,discard=async,subvol=@var_pkgs $BTRFS /mnt/var/cache/pacman/pkg
+mount -o ssd,noatime,discard=async,subvol=@ $BTRFS /mnt
+mkdir -p /mnt/{home,root,.snapshots,/var/log,/var/cache/pacman/pkg,boot}
+mount -o ssd,noatime,discard=async,subvol=@home $BTRFS /mnt/home
+mount -o ssd,noatime,discard=async,subvol=@root $BTRFS /mnt/root
+mount -o ssd,noatime,discard=async,subvol=@snapshots $BTRFS /mnt/.snapshots
+mount -o ssd,noatime,discard=async,subvol=@var_log $BTRFS /mnt/var/log
+mount -o ssd,noatime,discard=async,subvol=@var_pkgs $BTRFS /mnt/var/cache/pacman/pkg
 chattr +C /mnt/var/log
 mount $ESP /mnt/boot/
 
@@ -287,7 +293,7 @@ network_selector
 
 # Pacstrap (setting up a base sytem onto the new root).
 print "Installing the base system (it may take a while)."
-pacstrap /mnt --needed base $kernel $microcode linux-firmware $kernel-headers btrfs-progs grub grub-btrfs rsync efibootmgr snapper reflector base-devel snap-pac zram-generator >/dev/null
+pacstrap /mnt --needed base $kernel $microcode linux-firmware $kernel-headers $kernel2pkgs btrfs-progs grub grub-btrfs rsync efibootmgr snapper reflector base-devel snap-pac zram-generator >/dev/null
 
 # Setting up the hostname.
 hostname_selector
@@ -398,11 +404,11 @@ Exec = /usr/bin/rsync -a --delete /boot /.bootbackup
 EOF
 
 # ZRAM configuration.
-print "Configuring ZRAM."
-cat > /mnt/etc/systemd/zram-generator.conf <<EOF
-[zram0]
-zram-size = min(ram, 8192)
-EOF
+# print "Configuring ZRAM."
+# cat > /mnt/etc/systemd/zram-generator.conf <<EOF
+# [zram0]
+# zram-size = min(ram, 8192)
+# EOF
 
 # Pacman eye-candy features.
 print "Enabling colours, animations, and parallel in pacman."
